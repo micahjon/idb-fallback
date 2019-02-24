@@ -1,14 +1,22 @@
 {
   "name": "idb-fallback",
   "version": "0.1.0",
-  "description": "Promise-based IndexedDB wrapper (extends idb-keyval) with memory fallback, versioning, and multiple-tab support.",
+  "description": "Promise-based IndexedDB wrapper with memory fallback, versioning, and multiple-tab support.",
+  "main": "dist/idb-fallback.cjs.js",
+  "module": "dist/idb-fallback.esm.js",
+  "browser": "dist/idb-fallback.umd.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "idb-keyval": "^3.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "rollup": "^1.2.3",
+    "rollup-plugin-commonjs": "^9.2.1",
+    "rollup-plugin-node-resolve": "^4.0.1"
+  }
 }
