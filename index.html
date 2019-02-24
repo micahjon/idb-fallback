@@ -1,0 +1,31 @@
+<html lang="en">
+
+<head>
+	<title>Jest Testing</title>
+	<script src="node_modules/idb-keyval/dist/idb-keyval-iife.js"></script>
+	<script src="dist/idb-fallback.umd.js"></script>
+	<script>
+		window.blobToArrayBuffer = function (blob) {
+			return new Promise((resolve, reject) => {
+				const fileReader = new FileReader();
+				fileReader.onload = () => resolve(fileReader.result);
+				fileReader.onerror = reject;
+				fileReader.readAsArrayBuffer(blob);
+			});
+		}
+		window.areBuffersEqual = function(buf1, buf2) {
+			if (buf1.byteLength != buf2.byteLength) return false;
+			var dv1 = new Int8Array(buf1);
+			var dv2 = new Int8Array(buf2);
+			for (let i = 0 ; i != buf1.byteLength ; i++){
+					if (dv1[i] != dv2[i]) return false;
+			}
+			return true;
+		}
+	</script>
+</head>
+
+<body>
+</body>
+
+</html>

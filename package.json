@@ -7,16 +7,22 @@
   "browser": "dist/idb-fallback.umd.js",
   "scripts": {
     "build": "rollup -c",
-    "watch": "rollup -c -w"
+    "watch": "rollup -c -w",
+    "serve": "serve",
+    "test": "jest"
   },
-  "author": "",
+  "author": "Micah Miller-Eshleman",
   "license": "ISC",
   "dependencies": {
     "idb-keyval": "^3.1.0"
   },
   "devDependencies": {
+    "jest": "^24.1.0",
+    "jest-cli": "^24.1.0",
+    "puppeteer": "^1.12.2",
     "rollup": "^1.2.3",
     "rollup-plugin-commonjs": "^9.2.1",
-    "rollup-plugin-node-resolve": "^4.0.1"
+    "rollup-plugin-node-resolve": "^4.0.1",
+    "serve": "^10.1.2"
   }
 }
