@@ -1,14 +1,14 @@
 const puppeteer = require('puppeteer');
 
 describe('Store', async () => {
-  let page, recordsToStore;
+  let browser, page, recordsToStore;
   const localPath = 'http://localhost:5000';
   const imagePath = `${localPath}/__tests__/images`;
 
   // Lauch new headless page (which just loads UMD library)
   beforeAll(async () => {
     // let browser = await puppeteer.launch({ headless: false });
-    let browser = await puppeteer.launch();
+    browser = await puppeteer.launch();
     page = await browser.newPage();
 
     await page.goto(localPath);
@@ -34,7 +34,7 @@ describe('Store', async () => {
 
   test('Init object store', async () => {
     const isSetup = await page.evaluate(async () => {
-      window.idbFallback = new IdbFallback();
+      window.idbFallback = new IdbFallback({ version: '0.1' });
       return await idbFallback.indexedDBReady;
     });
     expect(isSetup).toBe(true);
@@ -79,6 +79,10 @@ describe('Store', async () => {
           .then(() => idbFallback.get('largeBlob'))
           .then(blobToArrayBuffer),
       ]);
+
+      // Clean up these blobs
+      await Promise.all([idbFallback.del('tinyBlob'), idbFallback.del('largeBlob')]);
+
       return areBuffersEqual(tinyAB, storedTinyAB) && areBuffersEqual(largeAB, storedLargeAB);
     }, imagePath);
 
@@ -93,6 +97,10 @@ describe('Store', async () => {
         const before = await idbFallback.get(key);
         await idbFallback.del(key);
         const after = await idbFallback.get(key);
+
+        // Restore this deleted key
+        await idbFallback.set(key, value);
+
         // Ensure before and after are what they should be
         // Check here instead of in parent test b/c undefined is coerced to null by JSON
         return before === value && after === undefined;
@@ -103,13 +111,97 @@ describe('Store', async () => {
     expect(testPassed).toBe(true);
   });
 
-  // test('Update version', async () => {
-  //   // A Store is already in
+  test('Clear store on version update', async () => {
+    const [beforeKeys, afterKeys, newStoreKeys] = await page.evaluate(async recordsToStore => {
+      // Get current keys
+      const beforeKeys = await idbFallback.keys().then(keys => keys.indexedDB);
 
-  //   const twenty = await page.evaluate(async () => {
-  //     return await idbFallback.get('twenty');
-  //   });
+      // Create a new idbFallback instance with a new version
+      const newIdbFallback = new IdbFallback({ version: '0.2' });
 
-  //   expect(twenty).toBe(20);
-  // });
+      // Get keys from new instance (same store, but all keys should be deleted)
+      const newStoreKeys = await newIdbFallback.keys().then(keys => keys.indexedDB);
+
+      // Get keys from original instance (same store, but all keys should be deleted)
+      const afterKeys = await idbFallback.keys().then(keys => keys.indexedDB);
+
+      // Re-create original instance and add back original values
+      window.idbFallback = new IdbFallback({ version: '0.1' });
+      await Promise.all(
+        Object.entries(recordsToStore).map(([key, value]) => {
+          return idbFallback.set(key, value);
+        })
+      );
+
+      return [beforeKeys, afterKeys, newStoreKeys];
+    }, recordsToStore);
+
+    expect(beforeKeys.sort()).toEqual(Object.keys(recordsToStore).sort());
+    expect(afterKeys).toEqual([]);
+    expect(newStoreKeys).toEqual([]);
+  });
+
+  test('Move values to memory when new tab is opened', async () => {
+    // Avoid disrupting existing database & object stores
+    const newDatabaseSettings = {
+      databaseName: 'new-database',
+      objectStoreName: 'test-new-tab',
+      latestTabKey: '__test-latest-tab',
+    };
+
+    // Keys before tab is opened
+    const beforeKeys = await page.evaluate(
+      async (newDatabaseSettings, recordsToStore) => {
+        // Create a new idbFallback instance with a new latest tab key
+        window.newTabIdbFallback = new IdbFallback(newDatabaseSettings);
+        // Store all values in this object store
+        await Promise.all(
+          Object.entries(recordsToStore).map(([key, value]) => {
+            return newTabIdbFallback.set(key, value);
+          })
+        );
+        return await newTabIdbFallback.keys();
+      },
+      newDatabaseSettings,
+      recordsToStore
+    );
+
+    // Open new tab and setup IndexedDB in it
+    const newTab = await browser.newPage();
+    await newTab.goto(localPath);
+    newTab.once('load', () => {});
+    newTab.on('console', msg => console.log(msg.text()));
+    await newTab.evaluate(async newDatabaseSettings => {
+      window.idbFallback = new IdbFallback(newDatabaseSettings);
+      // return await idbFallback.indexedDBReady;
+    }, newDatabaseSettings);
+
+    // Ensure all data in existing app have been moved to memory
+    // after a brief delay
+    const afterKeys = await page.evaluate(async () => {
+      await waitSeconds(3);
+      return await newTabIdbFallback.keys();
+      function waitSeconds(seconds) {
+        return new Promise(resolve => {
+          setTimeout(resolve, seconds * 1000);
+        });
+      }
+    });
+
+    const allKeys = Object.keys(recordsToStore).sort();
+
+    // console.log({ beforeKeys, afterKeys });
+
+    expect(beforeKeys.indexedDB.sort()).toEqual(allKeys);
+    expect(beforeKeys.memory).toEqual([]);
+
+    expect(afterKeys.indexedDB).toEqual([]);
+    expect(afterKeys.memory.sort()).toEqual(allKeys);
+  });
 });
+
+function waitSeconds(seconds) {
+  return new Promise(resolve => {
+    setTimeout(resolve, seconds * 1000);
+  });
+}

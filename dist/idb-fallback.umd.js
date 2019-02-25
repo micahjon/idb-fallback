@@ -99,7 +99,7 @@
       constructor({
         databaseName = 'keyval-store',
         objectStoreName = 'keyval',
-        version = '1.0',
+        version = '0.1',
         versionKey = '__IndexedDB_version',
         disableOnNewTabOpen = true,
         latestTabKey = '__latest_tab',
@@ -373,8 +373,9 @@
       }
 
       /**
-       * When a new tab is opened with a BeFunky app, copy everything from IndexedDB
-       * to memory and disable IndexedDB in the current tab to prevent write conflicts.
+       * When "latestTabKey" is updated in LocalStorage (e.g. by an application in another tab),
+       * copy everything from IndexedDB to memory and disable IndexedDB in the current tab to
+       * prevent write conflicts.
        */
       listenForNewTabOpen() {
         handleNewTabOpen = handleNewTabOpen.bind(this);
@@ -396,14 +397,14 @@
           if (event.key !== latestTabKey) return;
 
           // A new tab was opened
-          console.log('A new tab was opened. Timestamp = ', event.newValue);
+          // console.log('A new tab was opened. Timestamp = ', event.newValue);
           window.removeEventListener('storage', handleNewTabOpen);
 
           // Grab all the data from IndexedDB and copy it to memory, disabling IndexedDB usage going forward
-          this.keys({ includeFallback: false })
-            .then(keys =>
+          this.keys()
+            .then(({ indexedDB }) =>
               Promise.all(
-                keys.map(key =>
+                indexedDB.map(key =>
                   this.get(key).then(value => {
                     this.fallbackStore[key] = value;
                   })
@@ -412,10 +413,10 @@
             )
             .then(
               () => {
-                this.disable('A new tab was opened');
+                this.disable('new_tab_opened');
               },
               error => {
-                this.disable('A new tab was opened', error);
+                this.disable('new_tab_opened', error);
               }
             );
         }
